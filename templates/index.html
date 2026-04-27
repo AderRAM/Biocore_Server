@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BioCore — Painel</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: .5px; }
+    header span { font-size: .85rem; color: #64748b; }
+
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 8px #22c55e;
+      flex-shrink: 0;
+    }
+    .dot.off { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+
+    /* device selector */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .toolbar label { font-size: .85rem; color: #94a3b8; }
+    .toolbar input {
+      background: #1e2130;
+      border: 1px solid #2d3348;
+      color: #e2e8f0;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: .9rem;
+      width: 220px;
+    }
+    .toolbar input:focus { outline: 2px solid #6366f1; }
+
+    /* cards */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .card {
+      background: #1e2130;
+      border: 1px solid #2d3348;
+      border-radius: 12px;
+      padding: 18px 16px;
+    }
+    .card .label { font-size: .75rem; color: #64748b; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 8px; }
+    .card .value { font-size: 1.8rem; font-weight: 700; line-height: 1; }
+    .card .unit  { font-size: .8rem; color: #94a3b8; margin-top: 4px; }
+    .card.pump-card .value { font-size: 1.1rem; letter-spacing: .5px; }
+    .card.pump-card .value.on  { color: #22c55e; }
+    .card.pump-card .value.off { color: #ef4444; }
+    .card .ts { font-size: .7rem; color: #475569; margin-top: 6px; }
+
+    /* control */
+    .section-title {
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
+
+    .control-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .btn {
+      padding: 10px 28px;
+      border: none;
+      border-radius: 8px;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-on   { background: #22c55e; color: #0f1117; }
+    .btn-off  { background: #ef4444; color: #fff; }
+    .btn-luz-on  { background: #eab308; color: #0f1117; }
+    .btn-luz-off { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+
+    #cmd-status {
+      font-size: .85rem;
+      color: #94a3b8;
+    }
+
+    /* history table */
+    .table-wrap {
+      background: #1e2130;
+      border: 1px solid #2d3348;
+      border-radius: 12px;
+      overflow: auto;
+      max-height: 420px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    thead tr { background: #161824; position: sticky; top: 0; }
+    th {
+      padding: 10px 14px;
+      text-align: left;
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .7px;
+      color: #64748b;
+      border-bottom: 1px solid #2d3348;
+    }
+    td {
+      padding: 9px 14px;
+      border-bottom: 1px solid #1a1e2e;
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #252a3a; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: .75rem;
+      font-weight: 600;
+    }
+    .badge-on  { background: #14532d; color: #86efac; }
+    .badge-off { background: #450a0a; color: #fca5a5; }
+
+    #last-update { font-size: .75rem; color: #475569; margin-top: 10px; }
+
+    .empty { padding: 40px; text-align: center; color: #475569; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="dot" id="conn-dot"></div>
+  <h1>BioCore</h1>
+  <span>Sistema de Irrigação Inteligente</span>
+</header>
+
+<div class="toolbar">
+  <label for="dev-input">Dispositivo:</label>
+  <input id="dev-input" type="text" placeholder="esp32-biocore-01" value="esp32-biocore-01" />
+</div>
+
+<!-- sensor cards -->
+<div class="cards">
+  <div class="card">
+    <div class="label">Umidade Solo</div>
+    <div class="value" id="c-solo">—</div>
+    <div class="unit">%</div>
+  </div>
+  <div class="card">
+    <div class="label">Temperatura</div>
+    <div class="value" id="c-temp">—</div>
+    <div class="unit">°C</div>
+  </div>
+  <div class="card">
+    <div class="label">Umidade Ar</div>
+    <div class="value" id="c-ar">—</div>
+    <div class="unit">%</div>
+  </div>
+  <div class="card">
+    <div class="label">Luminosidade</div>
+    <div class="value" id="c-lux">—</div>
+    <div class="unit">%</div>
+  </div>
+  <div class="card pump-card">
+    <div class="label">Bomba</div>
+    <div class="value" id="c-bomba">—</div>
+    <div class="ts" id="c-ts"></div>
+  </div>
+</div>
+
+<!-- command -->
+<div class="section-title">Enviar Comando para ESP32</div>
+<div class="control-row">
+  <button class="btn btn-on"  id="btn-on"  onclick="enviarComando('bomba', true)">Ligar Bomba</button>
+  <button class="btn btn-off" id="btn-off" onclick="enviarComando('bomba', false)">Desligar Bomba</button>
+  &nbsp;
+  <button class="btn btn-luz-on"  id="btn-luz-on"  onclick="enviarComando('luz', true)">&#9728; Ligar Luz</button>
+  <button class="btn btn-luz-off" id="btn-luz-off" onclick="enviarComando('luz', false)">&#9790; Desligar Luz</button>
+  <span id="cmd-status"></span>
+</div>
+
+<!-- history -->
+<div class="section-title">Leituras Recebidas</div>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Dispositivo</th>
+        <th>Solo %</th>
+        <th>Temp °C</th>
+        <th>Umid. Ar %</th>
+        <th>Lux %</th>
+        <th>Bomba</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="last-update"></div>
+
+<script>
+  const devInput = document.getElementById('dev-input');
+
+  function fmt(v, dec = 1) {
+    return v != null ? Number(v).toFixed(dec) : '—';
+  }
+
+  function fmtTs(ts) {
+    if (!ts) return '—';
+    // SQLite returns UTC without 'Z', add it
+    const d = new Date(ts.includes('Z') ? ts : ts + 'Z');
+    return d.toLocaleString('pt-BR');
+  }
+
+  async function fetchLeituras() {
+    const dev = devInput.value.trim();
+    const url = dev
+      ? `/api/leituras?dispositivo_id=${encodeURIComponent(dev)}&limite=50&_=${Date.now()}`
+      : `/api/leituras?limite=50&_=${Date.now()}`;
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+
+      setConnected(true);
+      updateCards(data);
+      updateTable(data);
+      document.getElementById('last-update').textContent =
+        'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+    } catch (e) {
+      setConnected(false);
+    }
+  }
+
+  function setConnected(ok) {
+    const dot = document.getElementById('conn-dot');
+    dot.className = 'dot' + (ok ? '' : ' off');
+  }
+
+  function updateCards(rows) {
+    if (!rows.length) return;
+    const r = rows[0]; // most recent
+    document.getElementById('c-solo').textContent = fmt(r.umidade_solo_percent);
+    document.getElementById('c-temp').textContent = fmt(r.temperatura);
+    document.getElementById('c-ar').textContent   = fmt(r.umidade_ar);
+    document.getElementById('c-lux').textContent  = fmt(r.luminosidade_percent);
+
+    const bombaEl = document.getElementById('c-bomba');
+    bombaEl.textContent = r.bomba ? 'LIGADA' : 'DESLIGADA';
+    bombaEl.className   = 'value ' + (r.bomba ? 'on' : 'off');
+    document.getElementById('c-ts').textContent = fmtTs(r.timestamp);
+  }
+
+  function updateTable(rows) {
+    const tbody = document.getElementById('tbody');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">Nenhuma leitura recebida ainda.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td>${fmtTs(r.timestamp)}</td>
+        <td>${r.dispositivo_id}</td>
+        <td>${fmt(r.umidade_solo_percent)}</td>
+        <td>${fmt(r.temperatura)}</td>
+        <td>${fmt(r.umidade_ar)}</td>
+        <td>${fmt(r.luminosidade_percent)}</td>
+        <td><span class="badge ${r.bomba ? 'badge-on' : 'badge-off'}">${r.bomba ? 'LIGADA' : 'DESLIGADA'}</span></td>
+      </tr>
+    `).join('');
+  }
+
+  async function enviarComando(tipo, ligar) {
+    const dev = devInput.value.trim();
+    if (!dev) { setCmdStatus('Informe o ID do dispositivo.', true); return; }
+
+    const allBtns = ['btn-on','btn-off','btn-luz-on','btn-luz-off'];
+    allBtns.forEach(id => document.getElementById(id).disabled = true);
+
+    const labels = { bomba: ['LIGAR BOMBA','DESLIGAR BOMBA'], luz: ['LIGAR LUZ','DESLIGAR LUZ'] };
+    const label  = labels[tipo][ligar ? 0 : 1];
+
+    try {
+      const res = await fetch('/api/comando', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dispositivo_id: dev, [tipo]: ligar }),
+      });
+      if (!res.ok) throw new Error(res.status);
+      setCmdStatus(`Comando "${label}" enviado. ESP32 buscara na proxima consulta.`, false);
+    } catch (e) {
+      setCmdStatus('Erro ao enviar comando: ' + e.message, true);
+    } finally {
+      allBtns.forEach(id => document.getElementById(id).disabled = false);
+    }
+  }
+
+  function setCmdStatus(msg, isError) {
+    const el = document.getElementById('cmd-status');
+    el.textContent = msg;
+    el.style.color = isError ? '#ef4444' : '#22c55e';
+    setTimeout(() => { el.textContent = ''; }, 5000);
+  }
+
+  // Carrega histórico inicial
+  fetchLeituras();
+  devInput.addEventListener('change', fetchLeituras);
+
+  // SSE — atualiza cards instantaneamente quando chega leitura nova
+  const evtSource = new EventSource('/api/stream');
+  evtSource.onmessage = (e) => {
+    const r = JSON.parse(e.data);
+    updateCards([r]);
+    setConnected(true);
+    document.getElementById('last-update').textContent =
+      'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+    // Insere nova linha no topo da tabela sem recarregar tudo
+    const tbody = document.getElementById('tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtTs(r.timestamp)}</td>
+      <td>${r.dispositivo_id}</td>
+      <td>${fmt(r.umidade_solo_percent)}</td>
+      <td>${fmt(r.temperatura)}</td>
+      <td>${fmt(r.umidade_ar)}</td>
+      <td>${fmt(r.luminosidade_percent)}</td>
+      <td><span class="badge ${r.bomba ? 'badge-on' : 'badge-off'}">${r.bomba ? 'LIGADA' : 'DESLIGADA'}</span></td>
+    `;
+    tbody.insertBefore(tr, tbody.firstChild);
+  };
+  evtSource.onerror = () => setConnected(false);
+</script>
+
+</body>
+</html>
