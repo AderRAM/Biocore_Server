@@ -1,7 +1,6 @@
 import sqlite3
 import config
 
-
 def _conn():
     conn = sqlite3.connect(config.DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -31,6 +30,7 @@ def inicializar():
                 dispositivo_id TEXT    NOT NULL,
                 bomba          INTEGER,
                 luz            INTEGER,
+                pulso          INTEGER,
                 criado_em      DATETIME DEFAULT (datetime('now')),
                 executado      INTEGER  DEFAULT 0
             );
@@ -52,3 +52,5 @@ def inicializar():
             """)
         elif "luz" not in cols:
             conn.execute("ALTER TABLE comandos ADD COLUMN luz INTEGER")
+        if "pulso" not in cols:
+            conn.execute("ALTER TABLE comandos ADD COLUMN pulso INTEGER")

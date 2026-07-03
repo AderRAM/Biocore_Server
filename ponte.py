@@ -16,6 +16,7 @@ CHAR_COMANDO_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a9"  # Notebook → ESP32
 
 NOME_DISPOSITIVO  = "BioCore"
 SERVIDOR_URL      = "http://localhost:5001"
+INTERVALO_RETRY   = 5  # segundos entre tentativas de scan/reconexão
 
 
 # ─── Recebe notificação do ESP32 e repassa ao Flask ───────────────────────────
@@ -48,7 +49,7 @@ async def enviar_comando_pendente(client: BleakClient):
         if not comando:
             return
         payload = json.dumps(comando).encode("utf-8")
-        await client.write_gatt_char(CHAR_COMANDO_UUID, payload, response=False)
+        await client.write_gatt_char(CHAR_COMANDO_UUID, payload, response=True)
         print(f"[Comando] Enviado ao ESP32: {comando}")
     except requests.exceptions.ConnectionError:
         pass
@@ -56,39 +57,50 @@ async def enviar_comando_pendente(client: BleakClient):
         print(f"[Comando] Erro: {e}")
 
 
-# ─── Escaneia e conecta ao ESP32 ──────────────────────────────────────────────
-async def conectar():
-    print(f"[BLE] Escaneando por '{NOME_DISPOSITIVO}'...")
+# ─── Escaneia, conecta e reconecta automaticamente ───────────────────────────
+async def conectar_e_manter():
+    while True:
+        print(f"[BLE] Escaneando por '{NOME_DISPOSITIVO}'...")
 
-    dispositivo = await BleakScanner.find_device_by_name(NOME_DISPOSITIVO, timeout=15)
-
-    if dispositivo is None:
-        print(f"[BLE] '{NOME_DISPOSITIVO}' não encontrado. Verifique se o ESP32 está ligado.")
-        return
-
-    print(f"[BLE] Encontrado: {dispositivo.name} ({dispositivo.address})")
-    print(f"[BLE] Conectando...")
-
-    async with BleakClient(dispositivo) as client:
-        print(f"[BLE] Conectado! Aguardando leituras...\n")
-
-        await client.start_notify(CHAR_LEITURA_UUID, ao_receber_leitura)
-
-        # Mantém a conexão aberta e verifica comandos pendentes a cada 3s
         try:
-            while True:
-                await enviar_comando_pendente(client)
-                await asyncio.sleep(3)
+            dispositivo = await BleakScanner.find_device_by_name(
+                NOME_DISPOSITIVO, timeout=15
+            )
+        except Exception as e:
+            print(f"[BLE] Erro no scan: {e}. Tentando novamente em {INTERVALO_RETRY}s...")
+            await asyncio.sleep(INTERVALO_RETRY)
+            continue
+
+        if dispositivo is None:
+            print(f"[BLE] '{NOME_DISPOSITIVO}' não encontrado. "
+                  f"Tentando novamente em {INTERVALO_RETRY}s...")
+            await asyncio.sleep(INTERVALO_RETRY)
+            continue
+
+        print(f"[BLE] Encontrado: {dispositivo.name} ({dispositivo.address})")
+        print(f"[BLE] Conectando...")
+
+        try:
+            async with BleakClient(dispositivo) as client:
+                print(f"[BLE] Conectado! Aguardando leituras...\n")
+
+                await client.start_notify(CHAR_LEITURA_UUID, ao_receber_leitura)
+
+                # Mantém a conexão aberta e verifica comandos pendentes a cada 3s
+                while True:
+                    await enviar_comando_pendente(client)
+                    await asyncio.sleep(3)
+
         except asyncio.CancelledError:
-            pass
-        finally:
-            await client.stop_notify(CHAR_LEITURA_UUID)
-            print("\n[BLE] Desconectado.")
+            raise
+        except Exception as e:
+            print(f"[BLE] Conexão perdida: {e}. Reconectando em {INTERVALO_RETRY}s...")
+            await asyncio.sleep(INTERVALO_RETRY)
 
 
 # ─── Ponto de entrada ─────────────────────────────────────────────────────────
 if __name__ == "__main__":
     try:
-        asyncio.run(conectar())
+        asyncio.run(conectar_e_manter())
     except KeyboardInterrupt:
         print("\n[BLE] Encerrado pelo usuário.")

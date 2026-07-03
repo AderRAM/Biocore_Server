@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+venv_local/
+.venv/
+env/
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+*.sync-conflict*
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

@@ -30,7 +30,22 @@
       box-shadow: 0 0 8px #22c55e;
       flex-shrink: 0;
     }
-    .dot.off { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+    .dot.off      { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+    .dot.scanning { background: #eab308; box-shadow: 0 0 8px #eab308; }
+
+    .dot-label { font-size: .72rem; color: #475569; margin-right: 16px; }
+
+    .btn-ble {
+      padding: 6px 16px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #94a3b8;
+      font-size: .8rem;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .btn-ble:hover { background: #273548; color: #e2e8f0; }
 
     /* device selector */
     .toolbar {
@@ -100,56 +115,68 @@
     }
     .btn:active { transform: scale(.97); }
     .btn:disabled { opacity: .4; cursor: not-allowed; }
-    .btn-on   { background: #22c55e; color: #0f1117; }
-    .btn-off  { background: #ef4444; color: #fff; }
-    .btn-luz-on  { background: #eab308; color: #0f1117; }
-    .btn-luz-off { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+    .btn-on    { background: #22c55e; color: #0f1117; }
+    .btn-off   { background: #ef4444; color: #fff; }
+    .btn-pulse { background: #6366f1; color: #fff; }
 
     #cmd-status {
       font-size: .85rem;
       color: #94a3b8;
     }
 
-    /* history table */
-    .table-wrap {
-      background: #1e2130;
+    /* log box */
+    .log-wrap {
+      background: #0d1117;
       border: 1px solid #2d3348;
-      border-radius: 12px;
-      overflow: auto;
-      max-height: 420px;
+      border-radius: 12px 12px 0 0;
+      overflow-y: auto;
+      height: 320px;
+      padding: 14px 16px;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: .8rem;
+      line-height: 1.6;
     }
-    table { width: 100%; border-collapse: collapse; font-size: .82rem; }
-    thead tr { background: #161824; position: sticky; top: 0; }
-    th {
-      padding: 10px 14px;
-      text-align: left;
-      font-size: .72rem;
-      text-transform: uppercase;
-      letter-spacing: .7px;
-      color: #64748b;
-      border-bottom: 1px solid #2d3348;
-    }
-    td {
-      padding: 9px 14px;
-      border-bottom: 1px solid #1a1e2e;
-      white-space: nowrap;
-    }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: #252a3a; }
+    .log-entry { display: flex; gap: 10px; }
+    .log-ts    { color: #475569; flex-shrink: 0; }
+    .log-msg   { color: #cbd5e1; }
+    .log-msg.info    { color: #60a5fa; }
+    .log-msg.success { color: #22c55e; }
+    .log-msg.warn    { color: #facc15; }
+    .log-msg.error   { color: #f87171; }
+    .log-msg.sensor  { color: #a5b4fc; }
+    .log-msg.status  { color: #34d399; }
 
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: .75rem;
-      font-weight: 600;
+    .log-input-row {
+      display: flex;
+      border: 1px solid #2d3348;
+      border-top: none;
+      border-radius: 0 0 12px 12px;
+      overflow: hidden;
+      margin-bottom: 28px;
     }
-    .badge-on  { background: #14532d; color: #86efac; }
-    .badge-off { background: #450a0a; color: #fca5a5; }
+    .log-input-row input {
+      flex: 1;
+      background: #161824;
+      border: none;
+      color: #e2e8f0;
+      padding: 10px 14px;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: .85rem;
+      outline: none;
+    }
+    .log-input-row input::placeholder { color: #334155; }
+    .log-input-row button {
+      background: #1e293b;
+      border: none;
+      color: #94a3b8;
+      padding: 10px 18px;
+      cursor: pointer;
+      font-size: .85rem;
+      transition: background .15s;
+    }
+    .log-input-row button:hover { background: #273548; color: #e2e8f0; }
 
     #last-update { font-size: .75rem; color: #475569; margin-top: 10px; }
-
-    .empty { padding: 40px; text-align: center; color: #475569; }
   </style>
 </head>
 <body>
@@ -158,6 +185,11 @@
   <div class="dot" id="conn-dot"></div>
   <h1>BioCore</h1>
   <span>Sistema de Irrigação Inteligente</span>
+  <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+    <div class="dot scanning" id="ble-dot"></div>
+    <span class="dot-label" id="ble-label">BLE</span>
+    <button class="btn-ble" onclick="reconectarBLE()">&#8635; Reconectar BLE</button>
+  </div>
 </header>
 
 <div class="toolbar">
@@ -197,116 +229,79 @@
 <!-- command -->
 <div class="section-title">Enviar Comando para ESP32</div>
 <div class="control-row">
-  <button class="btn btn-on"  id="btn-on"  onclick="enviarComando('bomba', true)">Ligar Bomba</button>
-  <button class="btn btn-off" id="btn-off" onclick="enviarComando('bomba', false)">Desligar Bomba</button>
-  &nbsp;
-  <button class="btn btn-luz-on"  id="btn-luz-on"  onclick="enviarComando('luz', true)">&#9728; Ligar Luz</button>
-  <button class="btn btn-luz-off" id="btn-luz-off" onclick="enviarComando('luz', false)">&#9790; Desligar Luz</button>
+  <button class="btn btn-on"    id="btn-on"    onclick="enviarComando('bomba', true)">Ligar Bomba</button>
+  <button class="btn btn-off"   id="btn-off"   onclick="enviarComando('bomba', false)">Desligar Bomba</button>
+  <button class="btn btn-pulse" id="btn-pulse" onclick="enviarPulso(2)">Pulso 2s</button>
   <span id="cmd-status"></span>
 </div>
 
-<!-- history -->
-<div class="section-title">Leituras Recebidas</div>
-<div class="table-wrap">
-  <table>
-    <thead>
-      <tr>
-        <th>Timestamp</th>
-        <th>Dispositivo</th>
-        <th>Solo %</th>
-        <th>Temp °C</th>
-        <th>Umid. Ar %</th>
-        <th>Lux %</th>
-        <th>Bomba</th>
-      </tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
+<!-- log -->
+<div class="section-title">Log do Sistema</div>
+<div class="log-wrap" id="log-box"></div>
+<div class="log-input-row">
+  <input id="log-input" type="text" placeholder='digite "status" e pressione Enter' autocomplete="off" />
+  <button onclick="processarInput()">&#9166;</button>
 </div>
 <div id="last-update"></div>
 
 <script>
   const devInput = document.getElementById('dev-input');
+  const logBox   = document.getElementById('log-box');
 
   function fmt(v, dec = 1) {
-    return v != null ? Number(v).toFixed(dec) : '—';
+    return v != null && v !== -1 ? Number(v).toFixed(dec) : '—';
   }
 
-  function fmtTs(ts) {
-    if (!ts) return '—';
-    // SQLite returns UTC without 'Z', add it
-    const d = new Date(ts.includes('Z') ? ts : ts + 'Z');
-    return d.toLocaleString('pt-BR');
+  function agora() {
+    return new Date().toLocaleTimeString('pt-BR');
   }
 
-  async function fetchLeituras() {
-    const dev = devInput.value.trim();
-    const url = dev
-      ? `/api/leituras?dispositivo_id=${encodeURIComponent(dev)}&limite=50&_=${Date.now()}`
-      : `/api/leituras?limite=50&_=${Date.now()}`;
-
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(res.status);
-      const data = await res.json();
-
-      setConnected(true);
-      updateCards(data);
-      updateTable(data);
-      document.getElementById('last-update').textContent =
-        'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
-    } catch (e) {
-      setConnected(false);
-    }
+  function log(msg, tipo = '') {
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `<span class="log-ts">[${agora()}]</span><span class="log-msg ${tipo}">${msg}</span>`;
+    logBox.appendChild(entry);
+    logBox.scrollTop = logBox.scrollHeight;
   }
 
   function setConnected(ok) {
-    const dot = document.getElementById('conn-dot');
-    dot.className = 'dot' + (ok ? '' : ' off');
+    document.getElementById('conn-dot').className = 'dot' + (ok ? '' : ' off');
   }
 
-  function updateCards(rows) {
-    if (!rows.length) return;
-    const r = rows[0]; // most recent
+  function updateCards(r) {
     document.getElementById('c-solo').textContent = fmt(r.umidade_solo_percent);
     document.getElementById('c-temp').textContent = fmt(r.temperatura);
     document.getElementById('c-ar').textContent   = fmt(r.umidade_ar);
     document.getElementById('c-lux').textContent  = fmt(r.luminosidade_percent);
-
     const bombaEl = document.getElementById('c-bomba');
     bombaEl.textContent = r.bomba ? 'LIGADA' : 'DESLIGADA';
     bombaEl.className   = 'value ' + (r.bomba ? 'on' : 'off');
-    document.getElementById('c-ts').textContent = fmtTs(r.timestamp);
+    const ts = r.timestamp ? new Date((r.timestamp.includes('Z') ? r.timestamp : r.timestamp + 'Z')).toLocaleTimeString('pt-BR') : '';
+    document.getElementById('c-ts').textContent = ts;
   }
 
-  function updateTable(rows) {
-    const tbody = document.getElementById('tbody');
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty">Nenhuma leitura recebida ainda.</td></tr>';
-      return;
+  async function fetchLeituras() {
+    const dev = devInput.value.trim();
+    const url = `/api/leituras?${dev ? 'dispositivo_id=' + encodeURIComponent(dev) + '&' : ''}limite=1&_=${Date.now()}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      setConnected(true);
+      if (data.length) updateCards(data[0]);
+    } catch {
+      setConnected(false);
     }
-    tbody.innerHTML = rows.map(r => `
-      <tr>
-        <td>${fmtTs(r.timestamp)}</td>
-        <td>${r.dispositivo_id}</td>
-        <td>${fmt(r.umidade_solo_percent)}</td>
-        <td>${fmt(r.temperatura)}</td>
-        <td>${fmt(r.umidade_ar)}</td>
-        <td>${fmt(r.luminosidade_percent)}</td>
-        <td><span class="badge ${r.bomba ? 'badge-on' : 'badge-off'}">${r.bomba ? 'LIGADA' : 'DESLIGADA'}</span></td>
-      </tr>
-    `).join('');
   }
 
   async function enviarComando(tipo, ligar) {
     const dev = devInput.value.trim();
-    if (!dev) { setCmdStatus('Informe o ID do dispositivo.', true); return; }
+    if (!dev) { log('Informe o ID do dispositivo.', 'error'); return; }
 
-    const allBtns = ['btn-on','btn-off','btn-luz-on','btn-luz-off'];
+    const allBtns = ['btn-on','btn-off','btn-pulse'];
     allBtns.forEach(id => document.getElementById(id).disabled = true);
 
-    const labels = { bomba: ['LIGAR BOMBA','DESLIGAR BOMBA'], luz: ['LIGAR LUZ','DESLIGAR LUZ'] };
-    const label  = labels[tipo][ligar ? 0 : 1];
+    const label = { bomba: ['LIGAR BOMBA','DESLIGAR BOMBA'] }[tipo][ligar ? 0 : 1];
 
     try {
       const res = await fetch('/api/comando', {
@@ -315,11 +310,34 @@
         body: JSON.stringify({ dispositivo_id: dev, [tipo]: ligar }),
       });
       if (!res.ok) throw new Error(res.status);
-      setCmdStatus(`Comando "${label}" enviado. ESP32 buscara na proxima consulta.`, false);
+      log(`Comando enviado → ${label}`, 'success');
+      document.getElementById('cmd-status').textContent = '';
     } catch (e) {
-      setCmdStatus('Erro ao enviar comando: ' + e.message, true);
+      log('Erro ao enviar comando: ' + e.message, 'error');
     } finally {
-      allBtns.forEach(id => document.getElementById(id).disabled = false);
+      allBtns.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
+    }
+  }
+
+  async function enviarPulso(segundos) {
+    const dev = devInput.value.trim();
+    if (!dev) { log('Informe o ID do dispositivo.', 'error'); return; }
+
+    const allBtns = ['btn-on','btn-off','btn-pulse'];
+    allBtns.forEach(id => document.getElementById(id).disabled = true);
+
+    try {
+      const res = await fetch('/api/comando', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dispositivo_id: dev, pulso: segundos }),
+      });
+      if (!res.ok) throw new Error(res.status);
+      log(`Comando enviado → PULSO ${segundos}s`, 'success');
+    } catch (e) {
+      log('Erro ao enviar pulso: ' + e.message, 'error');
+    } finally {
+      allBtns.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = false; });
     }
   }
 
@@ -327,36 +345,140 @@
     const el = document.getElementById('cmd-status');
     el.textContent = msg;
     el.style.color = isError ? '#ef4444' : '#22c55e';
-    setTimeout(() => { el.textContent = ''; }, 5000);
+    setTimeout(() => { el.textContent = ''; }, 4000);
   }
 
-  // Carrega histórico inicial
-  fetchLeituras();
-  devInput.addEventListener('change', fetchLeituras);
+  async function cmdStatus() {
+    log('Consultando status...', 'info');
+    try {
+      const res = await fetch('/api/status');
+      const s = await res.json();
 
-  // SSE — atualiza cards instantaneamente quando chega leitura nova
+      setBLEStatus(s.ble);
+
+      const bleStatus = {
+        conectado:    'conectado ao ESP32',
+        conectando:   'conectando...',
+        escaneando:   'escaneando...',
+        desconectado: 'desconectado',
+        erro:         `erro — ${s.ble.erro ?? ''}`,
+        iniciando:    'iniciando...',
+      }[s.ble.status] ?? s.ble.status;
+
+      log('─── STATUS ──────────────────────────', 'status');
+      log(`  Servidor : ${s.servidor}`, 'status');
+      log(`  BLE      : ${bleStatus}`, s.esp32_conectado ? 'status' : 'warn');
+
+      if (s.ultima_leitura) {
+        const recente = s.segundos_desde_leitura < 60;
+        log(`  ESP32    : última leitura há ${s.segundos_desde_leitura}s`, recente ? 'status' : 'warn');
+      } else {
+        log(`  ESP32    : nenhuma leitura recebida ainda`, 'warn');
+      }
+
+      if (s.sensores) {
+        const x = s.sensores;
+        log(`  Solo     : ${fmt(x.umidade_solo)}%`, 'status');
+        log(`  Temp     : ${fmt(x.temperatura)} °C`, 'status');
+        log(`  Umid. Ar : ${fmt(x.umidade_ar)}%`, 'status');
+        log(`  Lux      : ${fmt(x.luminosidade)}%`, 'status');
+        log(`  Bomba    : ${s.bomba ? 'LIGADA' : 'DESLIGADA'}`, s.bomba ? 'warn' : 'status');
+      }
+      log('─────────────────────────────────────', 'status');
+    } catch (e) {
+      log('Erro ao consultar status: ' + e.message, 'error');
+    }
+  }
+
+  function processarInput() {
+    const input = document.getElementById('log-input');
+    const cmd = input.value.trim().toLowerCase();
+    input.value = '';
+    if (!cmd) return;
+
+    log('> ' + cmd, 'info');
+
+    if (cmd === 'status') {
+      cmdStatus();
+    } else {
+      log(`Comando desconhecido: "${cmd}". Comandos disponíveis: status`, 'error');
+    }
+  }
+
+  document.getElementById('log-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') processarInput();
+  });
+
+  // ─── BLE status ──────────────────────────────────────────────────────────
+  function setBLEStatus(ble) {
+    const dot   = document.getElementById('ble-dot');
+    const label = document.getElementById('ble-label');
+    const mapa  = {
+      conectado:    ['',         'ESP32'],
+      conectando:   ['scanning', 'Conectando'],
+      escaneando:   ['scanning', 'Scan...'],
+      desconectado: ['off',      'Desconectado'],
+      erro:         ['off',      'Erro BLE'],
+      iniciando:    ['scanning', 'Iniciando'],
+    };
+    const [cls, txt] = mapa[ble.status] ?? ['scanning', ble.status];
+    dot.className = 'dot' + (cls ? ' ' + cls : '');
+    label.textContent = txt;
+  }
+
+  async function reconectarBLE() {
+    log('Solicitando reconexão BLE...', 'info');
+    try {
+      await fetch('/api/ble/reconectar', { method: 'POST' });
+    } catch (e) {
+      log('Erro ao solicitar reconexão: ' + e.message, 'error');
+    }
+  }
+
+  // ─── SSE — leituras e eventos em tempo real ───────────────────────────────
   const evtSource = new EventSource('/api/stream');
   evtSource.onmessage = (e) => {
-    const r = JSON.parse(e.data);
-    updateCards([r]);
+    const data = JSON.parse(e.data);
+
+    // Evento de sistema (BLE, erros, etc.)
+    if (data._evento) {
+      const tipo = data._evento === 'ble_ok'   ? 'success'
+                 : data._evento === 'ble_erro' ? 'error'
+                 : 'info';
+      log(data.mensagem, tipo);
+      // Atualiza dot BLE ao receber evento
+      fetch('/api/status').then(r => r.json()).then(s => setBLEStatus(s.ble)).catch(() => {});
+      return;
+    }
+
+    // Leitura de sensor
+    updateCards(data);
     setConnected(true);
-    document.getElementById('last-update').textContent =
-      'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
-    // Insere nova linha no topo da tabela sem recarregar tudo
-    const tbody = document.getElementById('tbody');
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${fmtTs(r.timestamp)}</td>
-      <td>${r.dispositivo_id}</td>
-      <td>${fmt(r.umidade_solo_percent)}</td>
-      <td>${fmt(r.temperatura)}</td>
-      <td>${fmt(r.umidade_ar)}</td>
-      <td>${fmt(r.luminosidade_percent)}</td>
-      <td><span class="badge ${r.bomba ? 'badge-on' : 'badge-off'}">${r.bomba ? 'LIGADA' : 'DESLIGADA'}</span></td>
-    `;
-    tbody.insertBefore(tr, tbody.firstChild);
+    const bomba = data.bomba ? 'bomba=ON' : 'bomba=OFF';
+    log(
+      `[${data.dispositivo_id}] solo=${fmt(data.umidade_solo_percent)}% temp=${fmt(data.temperatura)}°C umid=${fmt(data.umidade_ar)}% lux=${fmt(data.luminosidade_percent)}% ${bomba}`,
+      'sensor'
+    );
+    document.getElementById('last-update').textContent = 'Atualizado: ' + agora();
   };
-  evtSource.onerror = () => setConnected(false);
+  evtSource.onerror = () => {
+    setConnected(false);
+    log('Conexão SSE perdida. Reconectando...', 'warn');
+  };
+
+  // Inicializa
+  fetchLeituras();
+  devInput.addEventListener('change', fetchLeituras);
+  fetch('/api/status').then(r => r.json()).then(s => setBLEStatus(s.ble)).catch(() => {});
+  log('Servidor BioCore conectado. Digite "status" para ver o estado do sistema.', 'info');
+
+  // Poll periódico — mantém o dot BLE correto mesmo sem eventos SSE
+  setInterval(() => {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(s => { setBLEStatus(s.ble); setConnected(s.esp32_conectado); })
+      .catch(() => { setConnected(false); });
+  }, 15000);
 </script>
 
 </body>
